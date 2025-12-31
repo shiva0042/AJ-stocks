@@ -1,0 +1,26 @@
+
+Running Gradle task 'assembleRelease'...                        
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':gradle:compileGroovy'.
+> BUG! exception in phase 'semantic analysis' in source unit 'D:\vs\anti\flutter\packages\flutter_tools\gradle\src\main\groovy\app_plugin_loader.groovy' Unsupported class file major version 65
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+
+* Get more help at https://help.gradle.org
+
+BUILD FAILED in 3s
+Running Gradle task 'assembleRelease'...                            4.4s
+
+┌─ Flutter Fix ────────────────────────────────────────────────────────────────────────────────────┐
+│ [!] Your project's Gradle version is incompatible with the Java version that Flutter is using    │
+│ for Gradle.                                                                                      │
+│                                                                                                  │
+│ To fix this issue, consult the migration guide at docs.flutter.dev/go/android-java-gradle-error. │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+Gradle task assembleRelease failed with exit code 1

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "4789177032",
+    "project_id": "aj-stocks-dcdc5",
+    "storage_bucket": "aj-stocks-dcdc5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:4789177032:android:9c8da8f6430ae256e3f3fd",
+        "android_client_info": {
+          "package_name": "AJ.stocks"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDi-nRqOr4aXurdZPf_S9vknWeCX32ypo0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
