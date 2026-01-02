@@ -432,19 +432,53 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Center(
-                      child: TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: Text(
-                          'DISCARD CHANGES',
-                          style: TextStyle(
-                            color: Colors.grey[500], 
-                            fontWeight: FontWeight.bold,
-                            decoration: TextDecoration.underline,
                           ),
                         ),
                       ),
                     ),
+                    
+                    if (widget.task != null) ...[
+                      const SizedBox(height: 16),
+                      Center(
+                        child: TextButton.icon(
+                          onPressed: () {
+                             // Delete confirmation in Edit Screen
+                             showDialog(
+                               context: context,
+                               builder: (ctx) => AlertDialog(
+                                 title: const Text('Delete Task'),
+                                 content: Text('Permanently remove "${widget.task!.shopName}"?'),
+                                 actions: [
+                                   TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+                                   ElevatedButton(
+                                     style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                                     onPressed: () async {
+                                        await DatabaseService().deleteTask(widget.task!.id);
+                                        if (mounted) {
+                                          Navigator.pop(ctx); // Close dialog
+                                          Navigator.pop(context); // Close screen
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(content: Text('Task deleted.')),
+                                          );
+                                        }
+                                     },
+                                     child: const Text('Delete', style: TextStyle(color: Colors.white)),
+                                   ),
+                                 ],
+                               ),
+                             );
+                          },
+                          icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                          label: const Text(
+                            'DELETE ENTRY',
+                            style: TextStyle(
+                              color: Colors.red, 
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
