@@ -15,9 +15,26 @@ class AnalyticsScreen extends StatefulWidget {
 }
 
 class _AnalyticsScreenState extends State<AnalyticsScreen> {
-  String _selectedPeriod = 'Week'; // Day, Week, Month, Year
+  String _selectedPeriod = 'Week'; // Day, Week, Month, Year, All
   TaskStatus? _selectedStatus;
   String? _selectedBrand;
+  DateTime _focusedDate = DateTime.now();
+
+  Future<void> _selectDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _focusedDate,
+      firstDate: DateTime(2023),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null && picked != _focusedDate) {
+      setState(() {
+        _focusedDate = picked;
+        _selectedStatus = null;
+        _selectedBrand = null;
+      });
+    }
+  }
 
   void _exportToCsv(List<Task> tasks) {
     if (tasks.isEmpty) {
@@ -58,30 +75,34 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     const primaryBlue = Color(0xFF4C4DDC);
     const secondaryBlue = Color(0xFF6C63FF);
     
-    // 1. Filter tasks based on selected period
-    final now = DateTime.now();
+    // 1. Filter tasks based on selected period and focused date
     List<Task> periodTasks = [];
     
     switch (_selectedPeriod) {
       case 'Day':
         periodTasks = widget.tasks.where((t) => 
-          t.createdAt.year == now.year && 
-          t.createdAt.month == now.month && 
-          t.createdAt.day == now.day
+          t.createdAt.year == _focusedDate.year && 
+          t.createdAt.month == _focusedDate.month && 
+          t.createdAt.day == _focusedDate.day
         ).toList();
         break;
       case 'Week':
-        final startOfWeek = now.subtract(const Duration(days: 7));
-        periodTasks = widget.tasks.where((t) => t.createdAt.isAfter(startOfWeek)).toList();
+        final startOfWeek = _focusedDate.subtract(const Duration(days: 7));
+        periodTasks = widget.tasks.where((t) => 
+          t.createdAt.isAfter(startOfWeek) && t.createdAt.isBefore(_focusedDate.add(const Duration(days: 1)))
+        ).toList();
         break;
       case 'Month':
         periodTasks = widget.tasks.where((t) => 
-          t.createdAt.year == now.year && 
-          t.createdAt.month == now.month
+          t.createdAt.year == _focusedDate.year && 
+          t.createdAt.month == _focusedDate.month
         ).toList();
         break;
       case 'Year':
-        periodTasks = widget.tasks.where((t) => t.createdAt.year == now.year).toList();
+        periodTasks = widget.tasks.where((t) => t.createdAt.year == _focusedDate.year).toList();
+        break;
+      case 'All':
+        periodTasks = widget.tasks;
         break;
     }
 
@@ -153,7 +174,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                         decoration: BoxDecoration(color: Colors.white12, borderRadius: BorderRadius.circular(12)),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
-                          children: ['Day', 'Week', 'Month', 'Year'].map((period) {
+                          children: ['Day', 'Week', 'Month', 'Year', 'All'].map((period) {
                             final isSelected = _selectedPeriod == period;
                             return GestureDetector(
                               onTap: () => setState(() { _selectedPeriod = period; _selectedStatus = null; _selectedBrand = null; }),
@@ -163,13 +184,45 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                                   color: isSelected ? Colors.white : Colors.transparent,
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: Text(period, style: TextStyle(color: isSelected ? primaryBlue : Colors.white70, fontWeight: FontWeight.bold)),
+                                child: Text(period, style: TextStyle(color: isSelected ? primaryBlue : Colors.white70, fontWeight: FontWeight.bold, fontSize: 12)),
                               ),
                             );
                           }).toList(),
                         ),
                       ),
-                      const SizedBox(height: 30),
+                      const SizedBox(height: 20),
+                      // Dynamic Focus Selector
+                      if (_selectedPeriod != 'All')
+                        GestureDetector(
+                          onTap: _selectDate,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: Colors.white24),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.calendar_month, color: Colors.white, size: 16),
+                                const SizedBox(width: 8),
+                                Text(
+                                  _getSelectedRangeText(),
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                ),
+                                const SizedBox(width: 4),
+                                const Icon(Icons.keyboard_arrow_down, color: Colors.white70, size: 16),
+                              ],
+                            ),
+                          ),
+                        )
+                      else
+                        const Text(
+                          "LIFETIME STATS",
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 2, fontSize: 14),
+                        ),
+                      const SizedBox(height: 20),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
@@ -338,5 +391,21 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         ),
       ),
     );
+  }
+
+  String _getSelectedRangeText() {
+    switch (_selectedPeriod) {
+      case 'Day':
+        return DateFormat('EEE, MMM dd, yyyy').format(_focusedDate);
+      case 'Week':
+        final start = _focusedDate.subtract(const Duration(days: 7));
+        return "${DateFormat('MMM dd').format(start)} - ${DateFormat('MMM dd').format(_focusedDate)}";
+      case 'Month':
+        return DateFormat('MMMM yyyy').format(_focusedDate);
+      case 'Year':
+        return DateFormat('yyyy').format(_focusedDate);
+      default:
+        return 'All Time';
+    }
   }
 }
