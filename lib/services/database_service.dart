@@ -167,6 +167,21 @@ class DatabaseService {
     }
   }
 
+  // --- DELETE TASK ---
+  Future<void> deleteTask(String id) async {
+    if (_useMock) {
+      _mockTasks.removeWhere((t) => t.id == id);
+      _emitMock();
+    } else {
+      try {
+        await _tasksRef.child(id).remove().timeout(const Duration(seconds: 5));
+      } catch (e) {
+        print('DB ERROR: Delete task failed: $e');
+        rethrow;
+      }
+    }
+  }
+
   // --- CHECK URGENT (Mock Only for simplicity) ---
   Future<void> checkAndMarkUrgentTasks() async {
     if (_useMock) {

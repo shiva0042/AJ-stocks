@@ -8,6 +8,7 @@ class TaskCard extends StatelessWidget {
   final VoidCallback onPartial;
   final VoidCallback? onUndo;
   final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   const TaskCard({
     super.key,
@@ -16,6 +17,7 @@ class TaskCard extends StatelessWidget {
     required this.onPartial,
     this.onUndo,
     this.onEdit,
+    this.onDelete,
   });
 
   @override
@@ -82,6 +84,14 @@ class TaskCard extends StatelessWidget {
                     icon: const Icon(Icons.edit, size: 20),
                     color: Colors.grey,
                     onPressed: onEdit,
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                if (onDelete != null)
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 20),
+                    color: Colors.red.withOpacity(0.7),
+                    onPressed: onDelete,
                     constraints: const BoxConstraints(),
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                   ),

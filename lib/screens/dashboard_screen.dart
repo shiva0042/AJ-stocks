@@ -5,7 +5,8 @@ import '../widgets/task_card.dart';
 import 'add_task_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  final String? initError;
+  const DashboardScreen({super.key, this.initError});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -20,6 +21,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
        await _db.checkAndMarkUrgentTasks();
+       if (widget.initError != null) {
+         showDialog(
+           context: context,
+           builder: (ctx) => AlertDialog(
+             title: const Text('Connection Failed'),
+             content: Text('Could not connect to online database.\n\nError: ${widget.initError}\n\nApp is running in Offline Mock Mode.'),
+             actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+           ),
+         );
+       }
     });
   }
 
@@ -88,6 +99,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => AddTaskScreen(task: task)),
+    );
+  }
+
+  void _deleteTask(Task task) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Task'),
+        content: Text('Are you sure you want to delete the task for "${task.shopName}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              await _db.deleteTask(task.id);
+              if (mounted) {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('${task.shopName} deleted!')),
+                );
+              }
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -300,6 +340,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     onPartial: isDelivered ? () {} : () => _markPartial(task),
                     onEdit: () => _editTask(task),
                     onUndo: isDelivered ? () => _markPending(task) : null,
+                    onDelete: () => _deleteTask(task),
                  );
                },
              ),
@@ -384,6 +425,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           onPartial: isDeliveredView ? () {} : () => _markPartial(task),
           onEdit: () => _editTask(task),
           onUndo: isDeliveredView ? () => _markPending(task) : null,
+          onDelete: () => _deleteTask(task),
         );
       },
     );
