@@ -18,7 +18,7 @@ jobs:
           channel: 'stable'
       
       - run: flutter pub get
-      - run: flutter build web --release
+      - run: flutter build web --release --base-href "/AJ-stocks/"
 
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v4
