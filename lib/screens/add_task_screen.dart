@@ -31,6 +31,9 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   bool _isToday = true;
   DateTime _selectedDate = DateTime.now();
 
+  // Status Selection
+  TaskStatus _status = TaskStatus.pending;
+
   @override
   void initState() {
     super.initState();
@@ -39,6 +42,9 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
     
     _initInventory();
     _initDate();
+    if (widget.task != null) {
+      _status = widget.task!.status;
+    }
   }
 
   void _initDate() {
@@ -165,7 +171,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
           shopName: _shopController.text.trim(),
           orderDetails: orderDetails,
           notes: _notesController.text.trim(),
-          status: widget.task!.status,
+          status: _status,
           createdAt: dateToSave,
           partialDetails: widget.task!.partialDetails,
         );
@@ -177,7 +183,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
           shopName: _shopController.text.trim(),
           orderDetails: orderDetails,
           notes: _notesController.text.trim(),
-          status: TaskStatus.pending,
+          status: _status,
           createdAt: dateToSave,
         );
         await DatabaseService().addTask(task);
@@ -187,6 +193,33 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
         Navigator.pop(context);
       }
     }
+  }
+
+  void _confirmDelete() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Task'),
+        content: Text('Permanently remove "${widget.task!.shopName}"?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              await DatabaseService().deleteTask(widget.task!.id);
+              if (mounted) {
+                Navigator.pop(ctx); // Close dialog
+                Navigator.pop(context); // Close screen
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Task deleted.')),
+                );
+              }
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -212,6 +245,12 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
         backgroundColor: primaryBlue,
         automaticallyImplyLeading: false, 
         actions: [
+          if (widget.task != null)
+            IconButton(
+              onPressed: _confirmDelete,
+              icon: const Icon(Icons.delete, color: Colors.white),
+              tooltip: 'Delete Task',
+            ),
           IconButton(
             onPressed: () {}, 
             icon: const Icon(Icons.notifications_active_outlined),
@@ -321,6 +360,49 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                           ),
                         ),
                       ],
+                    ),
+
+                    const SizedBox(height: 24),
+                    
+                    // STATUS & PRIORITY SECTION
+                    _buildLabel('STATUS & PRIORITY'),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: bgGrey,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<TaskStatus>(
+                          value: _status,
+                          isExpanded: true,
+                          icon: Icon(Icons.keyboard_arrow_down, color: primaryBlue),
+                          items: TaskStatus.values.map((status) {
+                            String label;
+                            Color color;
+                            switch (status) {
+                              case TaskStatus.urgent: label = 'Urgent Priority'; color = Colors.red; break;
+                              case TaskStatus.pending: label = 'Standard (Pending)'; color = Colors.blueGrey; break;
+                              case TaskStatus.partial: label = 'Partial / Split'; color = Colors.orange; break;
+                              case TaskStatus.delivered: label = 'Delivered'; color = Colors.green; break;
+                            }
+                            return DropdownMenuItem(
+                              value: status,
+                              child: Row(
+                                children: [
+                                  Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+                                  const SizedBox(width: 12),
+                                  Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) setState(() => _status = val);
+                          },
+                        ),
+                      ),
                     ),
 
                     const SizedBox(height: 24),
@@ -449,35 +531,9 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                     if (widget.task != null) ...[
                       const SizedBox(height: 16),
                       Center(
-                        child: TextButton.icon(
-                          onPressed: () {
-                             // Delete confirmation in Edit Screen
-                             showDialog(
-                               context: context,
-                               builder: (ctx) => AlertDialog(
-                                 title: const Text('Delete Task'),
-                                 content: Text('Permanently remove "${widget.task!.shopName}"?'),
-                                 actions: [
-                                   TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-                                   ElevatedButton(
-                                     style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                                     onPressed: () async {
-                                        await DatabaseService().deleteTask(widget.task!.id);
-                                        if (mounted) {
-                                          Navigator.pop(ctx); // Close dialog
-                                          Navigator.pop(context); // Close screen
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            const SnackBar(content: Text('Task deleted.')),
-                                          );
-                                        }
-                                     },
-                                     child: const Text('Delete', style: TextStyle(color: Colors.white)),
-                                   ),
-                                 ],
-                               ),
-                             );
-                          },
-                          icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                            child: TextButton.icon(
+                            onPressed: _confirmDelete,
+                            icon: const Icon(Icons.delete, color: Colors.red, size: 20),
                           label: const Text(
                             'DELETE ENTRY',
                             style: TextStyle(

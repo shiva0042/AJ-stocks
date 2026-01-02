@@ -9,34 +9,34 @@ import 'services/database_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
+  String? initError;
   try {
-    // Try to initialize Firebase using DefaultFirebaseOptions if available
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-    debugPrint('Firebase initialized successfully.');
+    // Check if Firebase is already initialized (by native plugin)
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+      debugPrint('Firebase initialized explicitly.');
+    } else {
+      debugPrint('Firebase already initialized by native plugin.');
+    }
   } catch (e) {
-    debugPrint('Firebase init failed (Likely missing API Key or Config): $e');
-    debugPrint('Falling back to MOCK data.');
-    DatabaseService.enableMock();
+    if (e.toString().contains('duplicate-app')) {
+       debugPrint('Firebase ignored duplicate initialization.');
+    } else {
+       debugPrint('Firebase init failed: $e');
+       debugPrint('Falling back to MOCK data.');
+       initError = e.toString();
+       DatabaseService.enableMock();
+    }
   }
 
-  // Initialize Notifications
-  /*
-  final notificationService = NotificationService();
-  try {
-    await notificationService.init();
-    await notificationService.scheduleDailyMorningNotification();
-  } catch (e) {
-    debugPrint('Notification init failed: $e');
-  }
-  */
-
-  runApp(const AJStocksApp());
+  runApp(AJStocksApp(initError: initError));
 }
 
 class AJStocksApp extends StatelessWidget {
-  const AJStocksApp({super.key});
+  final String? initError;
+  const AJStocksApp({super.key, this.initError});
 
   @override
   Widget build(BuildContext context) {
@@ -50,9 +50,8 @@ class AJStocksApp extends StatelessWidget {
           secondary: Colors.orangeAccent,
         ),
         useMaterial3: true,
-        // textTheme: GoogleFonts.poppinsTextTheme(),
       ),
-      home: const DashboardScreen(),
+      home: DashboardScreen(initError: initError),
     );
   }
 }

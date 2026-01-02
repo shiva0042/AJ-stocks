@@ -1,0 +1,45 @@
+
+Running Gradle task 'assembleRelease'...                        
+One or more plugins require a higher Android NDK version.
+Fix this issue by adding the following to D:\vs\AJ\android\app\build.gradle:
+android {
+  ndkVersion "25.1.8937393"
+  ...
+}
+
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:mergeReleaseResources'.
+> Multiple task action failures occurred:
+   > A failure occurred while executing com.android.build.gradle.internal.res.Aapt2CompileRunnable
+      > Android resource compilation failed
+        ERROR: D:\vs\AJ\android\app\src\main\res\mipmap-xhdpi\ic_launcher.png: AAPT: error: file failed to compile.
+
+   > A failure occurred while executing com.android.build.gradle.internal.res.Aapt2CompileRunnable
+      > Android resource compilation failed
+        ERROR: D:\vs\AJ\android\app\src\main\res\mipmap-hdpi\ic_launcher.png: AAPT: error: file failed to compile.
+
+   > A failure occurred while executing com.android.build.gradle.internal.res.Aapt2CompileRunnable
+      > Android resource compilation failed
+        ERROR: D:\vs\AJ\android\app\src\main\res\mipmap-xxhdpi\ic_launcher.png: AAPT: error: file failed to compile.
+
+   > A failure occurred while executing com.android.build.gradle.internal.res.Aapt2CompileRunnable
+      > Android resource compilation failed
+        ERROR: D:\vs\AJ\android\app\src\main\res\mipmap-xxxhdpi\ic_launcher.png: AAPT: error: file failed to compile.
+
+   > A failure occurred while executing com.android.build.gradle.internal.res.Aapt2CompileRunnable
+      > Android resource compilation failed
+        ERROR: D:\vs\AJ\android\app\src\main\res\mipmap-mdpi\ic_launcher.png: AAPT: error: file failed to compile.
+
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 2s
+Running Gradle task 'assembleRelease'...                            3.0s
+Gradle task assembleRelease failed with exit code 1

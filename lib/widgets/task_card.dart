@@ -9,6 +9,7 @@ class TaskCard extends StatelessWidget {
   final VoidCallback? onUndo;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
+  final ValueChanged<TaskStatus?>? onStatusChanged;
 
   const TaskCard({
     super.key,
@@ -18,6 +19,7 @@ class TaskCard extends StatelessWidget {
     this.onUndo,
     this.onEdit,
     this.onDelete,
+    this.onStatusChanged,
   });
 
   @override
@@ -89,8 +91,8 @@ class TaskCard extends StatelessWidget {
                   ),
                 if (onDelete != null)
                   IconButton(
-                    icon: const Icon(Icons.delete_outline, size: 20),
-                    color: Colors.red.withOpacity(0.7),
+                    icon: const Icon(Icons.delete, size: 20),
+                    color: Colors.red,
                     onPressed: onDelete,
                     constraints: const BoxConstraints(),
                     padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -132,58 +134,41 @@ class TaskCard extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  dateFormat.format(task.createdAt),
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              decoration: BoxDecoration(
+                color: statusColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: statusColor.withOpacity(0.5)),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<TaskStatus>(
+                  value: task.status,
+                  isDense: true,
+                  icon: Icon(Icons.arrow_drop_down, color: statusColor, size: 16),
+                  items: TaskStatus.values.map((status) {
+                     Color c = Colors.grey;
+                     if(status == TaskStatus.urgent) c = Colors.red;
+                     if(status == TaskStatus.delivered) c = Colors.green;
+                     if(status == TaskStatus.partial) c = Colors.orange;
+                     if(status == TaskStatus.pending) c = Colors.blueGrey;
+                     
+                     return DropdownMenuItem(
+                       value: status, 
+                       child: Text(
+                         status.name.toUpperCase(), 
+                         style: TextStyle(fontSize: 10, color: c, fontWeight: FontWeight.bold)
+                       )
+                     );
+                  }).toList(),
+                  onChanged: onStatusChanged,
                 ),
-                if (task.status != TaskStatus.delivered)
-                  Row(
-                    children: [
-                      ElevatedButton(
-                        onPressed: onPartial,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange.shade100,
-                          foregroundColor: Colors.orange.shade900,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 0),
-                          minimumSize: const Size(0, 32),
-                        ),
-                        child: const Text('Partial'),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton(
-                        onPressed: onDelivered,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green.shade100,
-                          foregroundColor: Colors.green.shade900,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 0),
-                          minimumSize: const Size(0, 32),
-                        ),
-                        child: const Text('Delivered'),
-                      ),
-                    ],
-                  ),
-                if (task.status == TaskStatus.delivered && onUndo != null)
-                   ElevatedButton.icon(
-                      onPressed: onUndo,
-                      icon: const Icon(Icons.undo, size: 16),
-                      label: const Text('Undo'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey.shade200,
-                        foregroundColor: Colors.black87,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 0),
-                        minimumSize: const Size(0, 32),
-                      ),
-                   ),
-              ],
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              dateFormat.format(task.createdAt),
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
           ],
         ),

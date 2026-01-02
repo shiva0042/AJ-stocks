@@ -15,6 +15,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   final DatabaseService _db = DatabaseService();
   int _currentIndex = 0;
+  TaskStatus? _homeFilterStatus;
 
   @override
   void initState() {
@@ -95,6 +96,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  void _updateStatus(Task task, TaskStatus newStatus) async {
+    if (newStatus == TaskStatus.partial) {
+      _markPartial(task);
+    } else {
+      await _db.updateTaskStatus(task.id, newStatus);
+    }
+  }
+
   void _editTask(Task task) async {
     await Navigator.push(
       context,
@@ -172,6 +181,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
 
             final allTasks = snapshot.data!;
+            // Sort by Date Descending (Newest first)
+            allTasks.sort((a, b) => b.createdAt.compareTo(a.createdAt));
             
             // Calculate stats
             final activeCount = allTasks.where((t) => t.status != TaskStatus.delivered).length;
@@ -184,8 +195,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 // 0: HOME DASHBOARD
                 _buildHomeView(allTasks, activeCount, urgentCount, successCount, partialCount),
-                 // 1: PENDING (Active)
-                _buildTaskList(allTasks.where((t) => t.status != TaskStatus.delivered).toList(), isDeliveredView: false),
+                 // 1: PENDING (Active) - with Filter Support
+                _buildTaskList(
+                  allTasks.where((t) {
+                    if (t.status == TaskStatus.delivered) return false;
+                    if (_homeFilterStatus != null) return t.status == _homeFilterStatus;
+                    return true;
+                  }).toList(), 
+                  isDeliveredView: false
+                ),
                  // 2: Placeholder for FAB (handled by location)
                 Container(), 
                 // 3: DELIVERED
@@ -218,7 +236,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         currentIndex: _currentIndex,
         onTap: (index) {
           if (index == 2) return; // middle button is FAB
-          setState(() => _currentIndex = index);
+          setState(() {
+             _currentIndex = index;
+             _homeFilterStatus = null; // Reset filter on manual nav
+          });
         },
         type: BottomNavigationBarType.fixed,
         selectedItemColor: primaryBlue,
@@ -277,17 +298,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                    const SizedBox(height: 20),
                    Row(
                      children: [
-                       Expanded(child: _buildStatItem(active.toString(), "TOTAL ACTIVE")),
+                       Expanded(child: _buildStatItem(active.toString(), "TOTAL ACTIVE", () => setState(() { _currentIndex = 1; _homeFilterStatus = null; }))),
                        const SizedBox(width: 12),
-                       Expanded(child: _buildStatItem(urgent.toString(), "URGENT ACTION")),
+                       Expanded(child: _buildStatItem(urgent.toString(), "URGENT ACTION", () => setState(() { _currentIndex = 1; _homeFilterStatus = TaskStatus.urgent; }))),
                      ],
                    ),
                    const SizedBox(height: 12),
                    Row(
                      children: [
-                       Expanded(child: _buildStatItem(success.toString(), "SUCCESS")),
+                       Expanded(child: _buildStatItem(success.toString(), "SUCCESS", () => setState(() { _currentIndex = 3; _homeFilterStatus = null; }))),
                        const SizedBox(width: 12),
-                       Expanded(child: _buildStatItem(partial.toString(), "SPLIT DROPS")),
+                       Expanded(child: _buildStatItem(partial.toString(), "SPLIT DROPS", () => setState(() { _currentIndex = 1; _homeFilterStatus = TaskStatus.partial; }))),
                      ],
                    )
                  ],
@@ -341,6 +362,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     onEdit: () => _editTask(task),
                     onUndo: isDelivered ? () => _markPending(task) : null,
                     onDelete: () => _deleteTask(task),
+                    onStatusChanged: (newStatus) => _updateStatus(task, newStatus!),
                  );
                },
              ),
@@ -351,26 +373,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildStatItem(String count, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            count,
-            style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
-          ),
-        ],
+  Widget _buildStatItem(String count, String label, VoidCallback? onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              count,
+              style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
+                ),
+                if (onTap != null)
+                   const Icon(Icons.arrow_forward_ios, size: 10, color: Colors.white30)
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -426,6 +459,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           onEdit: () => _editTask(task),
           onUndo: isDeliveredView ? () => _markPending(task) : null,
           onDelete: () => _deleteTask(task),
+          onStatusChanged: (newStatus) => _updateStatus(task, newStatus!),
         );
       },
     );
