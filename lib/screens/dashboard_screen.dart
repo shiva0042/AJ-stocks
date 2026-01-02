@@ -3,6 +3,11 @@ import '../models/task_model.dart';
 import '../services/database_service.dart';
 import '../widgets/task_card.dart';
 import 'add_task_screen.dart';
+import 'analytics_screen.dart';
+import 'notification_screen.dart';
+import 'settings_screen.dart';
+
+// ... imports remain the same
 
 class DashboardScreen extends StatefulWidget {
   final String? initError;
@@ -16,6 +21,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final DatabaseService _db = DatabaseService();
   int _currentIndex = 0;
   TaskStatus? _homeFilterStatus;
+  String _selectedBrandFilter = 'All';
+
+  // ... state helper methods (_markDelivered, etc) remain largely the same logic, 
+  // but for brevity I will assume they exist or I can inline minimal updates if visuals change.
+  // To keep this safe, I'm keeping the exact same logic methods below.
 
   @override
   void initState() {
@@ -140,268 +150,371 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // Define brand colors
-  final Color primaryBlue = const Color(0xFF4C4DDC); // approximate from image
-  final Color bgGrey = const Color(0xFFF4F6F8);
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: bgGrey,
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            Text(
-              'AJ STOCKS',
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20, letterSpacing: 1.2),
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
+
+    return PopScope(
+      canPop: _currentIndex == 0,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_currentIndex != 0) {
+          setState(() {
+            _currentIndex = 0;
+            _homeFilterStatus = null;
+          });
+        }
+      },
+      child: Scaffold(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        extendBody: true, // For transparency behind FAB/BottomNav if needed
+        appBar: AppBar(
+          leading: _currentIndex != 0 
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+                onPressed: () => setState(() {
+                  _currentIndex = 0;
+                  _homeFilterStatus = null;
+                }),
+              )
+            : null,
+          title: GestureDetector(
+            onTap: () {
+              setState(() {
+                _currentIndex = 0;
+                _homeFilterStatus = null;
+              });
+            },
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'AJ STOCKS',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w900, 
+                    color: Colors.white,
+                    letterSpacing: 1.2
+                  ),
+                ),
+                Text(
+                  'DELIVERY CONTROL',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: Colors.white70,
+                    letterSpacing: 3,
+                    fontWeight: FontWeight.bold
+                  ),
+                ),
+              ],
             ),
-            Text(
-              'DELIVERY CONTROL',
-              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w400, letterSpacing: 2),
+          ),
+          centerTitle: false,
+          backgroundColor: primaryColor,
+          elevation: 0,
+          actions: [
+            // Notification Bell with Badge (Future improvement: Real badging)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), shape: BoxShape.circle),
+              child: IconButton(
+                onPressed: () {
+                  final tasks = _db.currentTasks ?? [];
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => NotificationScreen(tasks: tasks)));
+                }, 
+                icon: const Icon(Icons.notifications_outlined, color: Colors.white, size: 22),
+              ),
+            ),
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 8),
+              decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), shape: BoxShape.circle),
+              child: IconButton(
+                 onPressed: () {
+                   Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+                 },
+                 icon: const Icon(Icons.settings_outlined, color: Colors.white, size: 22),
+              ),
             ),
           ],
         ),
-        centerTitle: false,
-        elevation: 0,
-        backgroundColor: primaryBlue,
-        actions: [
-          IconButton(
-            onPressed: () {}, 
-            icon: const Icon(Icons.notifications_active_outlined),
+        body: StreamBuilder<List<Task>>(
+            stream: _db.tasksStream,
+            initialData: _db.currentTasks,
+            builder: (context, snapshot) {
+              if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
+              if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+  
+              final List<Task> fetchedTasks = snapshot.data!;
+              
+              // Sort by Date Descending
+              fetchedTasks.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+              // Get All Unique Brands for the filter list
+              final allAvailableBrands = fetchedTasks.map((t) => t.brand).toSet().toList();
+              allAvailableBrands.sort();
+              final filterBrands = ['All', ...allAvailableBrands];
+
+              // Apply Brand Filter
+              final allTasks = _selectedBrandFilter == 'All' 
+                  ? fetchedTasks 
+                  : fetchedTasks.where((t) => t.brand.split(', ').contains(_selectedBrandFilter)).toList();
+              
+              // Calculate stats based on filtered tasks
+              final activeCount = allTasks.where((t) => t.status != TaskStatus.delivered).length;
+              final urgentCount = allTasks.where((t) => t.status == TaskStatus.urgent).length;
+              final successCount = allTasks.where((t) => t.status == TaskStatus.delivered).length;
+              final partialCount = allTasks.where((t) => t.status == TaskStatus.partial).length;
+  
+              return IndexedStack(
+                index: _currentIndex,
+                children: [
+                  _buildHomeView(allTasks, activeCount, urgentCount, successCount, partialCount, theme, filterBrands),
+                  _buildTaskList(
+                    allTasks.where((t) {
+                      if (t.status == TaskStatus.delivered) return false;
+                      if (_homeFilterStatus != null) return t.status == _homeFilterStatus;
+                      return true;
+                    }).toList(), 
+                    isDeliveredView: false
+                  ),
+                  const SizedBox.shrink(), // FAB Spacer
+                  _buildTaskList(allTasks.where((t) => t.status == TaskStatus.delivered).toList(), isDeliveredView: true),
+                  _buildSimpleView("AI Insights", theme),
+                ],
+              );
+            },
           ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: StreamBuilder<List<Task>>(
-          stream: _db.tasksStream,
-          initialData: _db.currentTasks,
-          builder: (context, snapshot) {
-            if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
-            if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-
-            final allTasks = snapshot.data!;
-            // Sort by Date Descending (Newest first)
-            allTasks.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-            
-            // Calculate stats
-            final activeCount = allTasks.where((t) => t.status != TaskStatus.delivered).length;
-            final urgentCount = allTasks.where((t) => t.status == TaskStatus.urgent).length;
-            final successCount = allTasks.where((t) => t.status == TaskStatus.delivered).length;
-            final partialCount = allTasks.where((t) => t.status == TaskStatus.partial).length;
-
-            return IndexedStack(
-              index: _currentIndex,
-              children: [
-                // 0: HOME DASHBOARD
-                _buildHomeView(allTasks, activeCount, urgentCount, successCount, partialCount),
-                 // 1: PENDING (Active) - with Filter Support
-                _buildTaskList(
-                  allTasks.where((t) {
-                    if (t.status == TaskStatus.delivered) return false;
-                    if (_homeFilterStatus != null) return t.status == _homeFilterStatus;
-                    return true;
-                  }).toList(), 
-                  isDeliveredView: false
-                ),
-                 // 2: Placeholder for FAB (handled by location)
-                Container(), 
-                // 3: DELIVERED
-                _buildTaskList(allTasks.where((t) => t.status == TaskStatus.delivered).toList(), isDeliveredView: true),
-                // 4: AI INSIGHTS
-                const Center(child: Text("AI Insights Coming Soon")),
-              ],
-            );
-          },
-        ),
-      
-      floatingActionButton: SizedBox(
-        height: 70,
-        width: 70,
-        child: FloatingActionButton(
+        
+        floatingActionButton: FloatingActionButton(
           onPressed: () async {
             await Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => const AddTaskScreen()),
             );
           },
-          backgroundColor: primaryBlue,
-          elevation: 10,
+          backgroundColor: theme.colorScheme.secondary,
+          foregroundColor: Colors.white,
+          elevation: 4,
           shape: const CircleBorder(),
-          child: const Icon(Icons.add, size: 32, color: Colors.white),
+          child: const Icon(Icons.add_rounded, size: 32),
         ),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          if (index == 2) return; // middle button is FAB
-          setState(() {
-             _currentIndex = index;
-             _homeFilterStatus = null; // Reset filter on manual nav
-          });
-        },
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: primaryBlue,
-        unselectedItemColor: Colors.grey,
-        showUnselectedLabels: true,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.local_shipping), label: 'Pending'),
-          BottomNavigationBarItem(icon: SizedBox.shrink(), label: ''), // Spacer for FAB
-          BottomNavigationBarItem(icon: Icon(Icons.check_circle), label: 'Delivered'),
-          BottomNavigationBarItem(icon: Icon(Icons.auto_awesome), label: 'AI Insights'),
-        ],
-      ),
     );
   }
 
-  Widget _buildHomeView(List<Task> tasks, int active, int urgent, int success, int partial) {
-    // Recent tasks: take top 5 active, or just top 5 recent
-    final recentTasks = tasks.take(5).toList();
+
+
+  Widget _buildHomeView(List<Task> allTasks, int active, int urgent, int success, int partial, ThemeData theme, List<String> availableBrands) {
+    final recentTasks = allTasks.take(5).toList();
 
     return SingleChildScrollView(
-      child: Column(
-        children: [
-          // Header / Stats Card
-          Container(
-             width: double.infinity,
-             padding: const EdgeInsets.all(20),
-             decoration: BoxDecoration(
-               color: Colors.white,
-               borderRadius: const BorderRadius.only(
-                 bottomLeft: Radius.circular(24),
-                 bottomRight: Radius.circular(24),
-               ),
-               boxShadow: [
-                 BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5)),
-               ],
-             ),
-             child: Container(
-               decoration: BoxDecoration(
-                 color: primaryBlue,
-                 borderRadius: BorderRadius.circular(24),
-                 boxShadow: [
-                   BoxShadow(color: primaryBlue.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 6)),
-                 ],
-               ),
-               padding: const EdgeInsets.all(20),
-               child: Column(
-                 children: [
-                   Row(
-                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                     children: const [
-                       Text("GLOBAL STATUS", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1)),
-                       Icon(Icons.bar_chart, color: Colors.white70),
-                     ],
-                   ),
-                   const SizedBox(height: 20),
-                   Row(
-                     children: [
-                       Expanded(child: _buildStatItem(active.toString(), "TOTAL ACTIVE", () => setState(() { _currentIndex = 1; _homeFilterStatus = null; }))),
-                       const SizedBox(width: 12),
-                       Expanded(child: _buildStatItem(urgent.toString(), "URGENT ACTION", () => setState(() { _currentIndex = 1; _homeFilterStatus = TaskStatus.urgent; }))),
-                     ],
-                   ),
-                   const SizedBox(height: 12),
-                   Row(
-                     children: [
-                       Expanded(child: _buildStatItem(success.toString(), "SUCCESS", () => setState(() { _currentIndex = 3; _homeFilterStatus = null; }))),
-                       const SizedBox(width: 12),
-                       Expanded(child: _buildStatItem(partial.toString(), "SPLIT DROPS", () => setState(() { _currentIndex = 1; _homeFilterStatus = TaskStatus.partial; }))),
-                     ],
-                   )
-                 ],
-               ),
-             ),
-          ),
-          
-          const SizedBox(height: 24),
-          
-          // Recent Tasks Header
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  "RECENT TASKS",
-                  style: TextStyle(
-                    fontSize: 16, 
-                    fontWeight: FontWeight.bold, 
-                    color: Colors.grey[800],
-                    letterSpacing: 1,
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 800),
+          child: Column(
+            children: [ 
+              // Header Background
+              Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(32),
+                    bottomRight: Radius.circular(32),
+                  ),
+                  boxShadow: [
+                    BoxShadow(color: theme.colorScheme.primary.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 8)),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 40),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Overview",
+                                style: theme.textTheme.headlineSmall?.copyWith(
+                                  color: Colors.white, 
+                                  fontWeight: FontWeight.bold
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              // Brand Filter Dropdown
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white10,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<String>(
+                                    value: availableBrands.contains(_selectedBrandFilter) ? _selectedBrandFilter : 'All',
+                                    dropdownColor: theme.colorScheme.primary,
+                                    icon: const Icon(Icons.filter_list, color: Colors.white70, size: 16),
+                                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                    items: availableBrands.map((brand) {
+                                      return DropdownMenuItem(
+                                        value: brand,
+                                        child: Text(brand),
+                                      );
+                                    }).toList(),
+                                    onChanged: (val) {
+                                      if (val != null) setState(() => _selectedBrandFilter = val);
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context, 
+                                MaterialPageRoute(builder: (_) => AnalyticsScreen(tasks: allTasks))
+                              );
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.white24,
+                                borderRadius: BorderRadius.circular(20)
+                              ),
+                              child: Row(
+                                children: const [
+                                  Text("Analytics", style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                                  SizedBox(width: 4),
+                                  Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 14),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      Row(
+                        children: [
+                          Expanded(child: _buildStatItem(active.toString(), "Active Orders", Icons.local_shipping, () => setState(() { _currentIndex = 1; _homeFilterStatus = null; }), 
+                            colors: [Colors.blue.shade400, Colors.blue.shade600])),
+                          const SizedBox(width: 12),
+                          Expanded(child: _buildStatItem(urgent.toString(), "Urgent Actions", Icons.warning_rounded, () => setState(() { _currentIndex = 1; _homeFilterStatus = TaskStatus.urgent; }), 
+                            colors: [const Color(0xFFFF8A65), const Color(0xFFFF5722)], isUrgent: true)),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(child: _buildStatItem(success.toString(), "Completed", Icons.check_circle, () => setState(() { _currentIndex = 3; _homeFilterStatus = null; }), 
+                            colors: [Colors.green.shade400, Colors.green.shade600])),
+                          const SizedBox(width: 12),
+                          Expanded(child: _buildStatItem(partial.toString(), "Split Deliveries", Icons.hourglass_bottom_rounded, () => setState(() { _currentIndex = 1; _homeFilterStatus = TaskStatus.partial; }), 
+                            colors: [Colors.orange.shade300, Colors.deepOrange.shade400])),
+                        ],
+                      )
+                    ],
                   ),
                 ),
-                TextButton(
-                  onPressed: () => setState(() => _currentIndex = 1), // Go to pending
-                  child: Text("View All", style: TextStyle(color: primaryBlue, fontWeight: FontWeight.bold)),
-                )
-              ],
-            ),
+              ),
+              
+              const SizedBox(height: 24),
+              
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "Recent Activity",
+                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: Colors.blueGrey[800]),
+                    ),
+                    TextButton(
+                      onPressed: () => setState(() => _currentIndex = 1),
+                      child: Text("View All", style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.bold)),
+                    )
+                  ],
+                ),
+              ),
+    
+              const SizedBox(height: 8),
+    
+              recentTasks.isEmpty 
+              ? _buildEmptyState()
+              : ListView.builder(
+                   padding: const EdgeInsets.symmetric(horizontal: 4),
+                   shrinkWrap: true,
+                   physics: const NeverScrollableScrollPhysics(),
+                   itemCount: recentTasks.length,
+                   itemBuilder: (context, index) {
+                     final task = recentTasks[index];
+                     final isDelivered = task.status == TaskStatus.delivered;
+                     return TaskCard(
+                        task: task,
+                        onDelivered: isDelivered ? () {} : () => _markDelivered(task),
+                        onPartial: isDelivered ? () {} : () => _markPartial(task),
+                        onEdit: () => _editTask(task),
+                        onUndo: isDelivered ? () => _markPending(task) : null,
+                        onDelete: () => _deleteTask(task),
+                        onStatusChanged: (newStatus) => _updateStatus(task, newStatus!),
+                     );
+                   },
+                 ),
+               
+               const SizedBox(height: 100), 
+            ],
           ),
-
-          const SizedBox(height: 8),
-
-          // List or Empty State
-          if (recentTasks.isEmpty) 
-             _buildEmptyState()
-          else
-             ListView.builder(
-               shrinkWrap: true,
-               physics: const NeverScrollableScrollPhysics(),
-               itemCount: recentTasks.length,
-               itemBuilder: (context, index) {
-                 final task = recentTasks[index];
-                 // Determine callbacks based on status
-                 final isDelivered = task.status == TaskStatus.delivered;
-                 return TaskCard(
-                    task: task,
-                    onDelivered: isDelivered ? () {} : () => _markDelivered(task),
-                    onPartial: isDelivered ? () {} : () => _markPartial(task),
-                    onEdit: () => _editTask(task),
-                    onUndo: isDelivered ? () => _markPending(task) : null,
-                    onDelete: () => _deleteTask(task),
-                    onStatusChanged: (newStatus) => _updateStatus(task, newStatus!),
-                 );
-               },
-             ),
-           
-           const SizedBox(height: 100), // Bottom padding for FAB
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildStatItem(String count, String label, VoidCallback? onTap) {
+  Widget _buildStatItem(String count, String label, IconData icon, VoidCallback? onTap, {List<Color>? colors, bool isUrgent = false}) {
+    final gradientColors = colors ?? [Colors.white.withOpacity(0.15), Colors.white.withOpacity(0.05)];
+    
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+        height: 140, // Increased height significantly to prevent overflow
+        padding: const EdgeInsets.all(16), // Reduced padding slightly to give more room
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
+          gradient: LinearGradient(colors: gradientColors, begin: Alignment.topLeft, end: Alignment.bottomRight),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+          boxShadow: [
+             BoxShadow(color: gradientColors.last.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 5))
+          ]
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              count,
-              style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 4),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  label,
-                  style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
-                ),
-                if (onTap != null)
-                   const Icon(Icons.arrow_forward_ios, size: 10, color: Colors.white30)
+                Icon(icon, color: Colors.white, size: 28), 
+                if(isUrgent) Container(width: 8, height: 8, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle))
               ],
             ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  count,
+                  style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900, height: 1.0),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+              ],
+            )
           ],
         ),
       ),
@@ -412,56 +525,68 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Container(
       margin: const EdgeInsets.all(24),
       padding: const EdgeInsets.all(40),
+      // ... same styling with updated colors if needed ...
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border.all(color: Colors.grey.withOpacity(0.3), style: BorderStyle.solid),
         borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
         children: [
-          Icon(Icons.inventory_2_outlined, size: 48, color: Colors.grey[300]),
+          Icon(Icons.inventory_2_outlined, size: 48, color: Colors.grey[200]),
           const SizedBox(height: 16),
-          Text(
-            "All tasks completed. Relax or add a new one!",
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey[400], fontSize: 16),
-          ),
+          Text("No tasks yet", style: TextStyle(color: Colors.grey[400], fontWeight: FontWeight.bold)),
         ],
       ),
     );
   }
 
+  Widget _buildSimpleView(String title, ThemeData theme) {
+    return Center(
+      child: Text(title, style: theme.textTheme.headlineMedium),
+    );
+  }
+
   Widget _buildTaskList(List<Task> tasks, {required bool isDeliveredView}) {
+    Widget content;
     if (tasks.isEmpty) {
-      return Center(
+      content = Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(isDeliveredView ? Icons.check_circle_outline : Icons.local_shipping_outlined, size: 64, color: Colors.grey[300]),
+            Icon(isDeliveredView ? Icons.check_circle_outline : Icons.local_shipping_outlined, size: 64, color: Colors.grey[200]),
             const SizedBox(height: 16),
             Text(
-              isDeliveredView ? "No delivered tasks yet" : "No pending tasks",
-              style: TextStyle(color: Colors.grey[500], fontSize: 16),
+              isDeliveredView ? "No delivered tasks" : "No pending tasks",
+              style: TextStyle(color: Colors.grey[400], fontSize: 16, fontWeight: FontWeight.bold),
             ),
           ],
         ),
       );
+    } else {
+      content = ListView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
+        itemCount: tasks.length,
+        itemBuilder: (context, index) {
+          final task = tasks[index];
+          return TaskCard(
+            task: task,
+            onDelivered: isDeliveredView ? () {} : () => _markDelivered(task),
+            onPartial: isDeliveredView ? () {} : () => _markPartial(task),
+            onEdit: () => _editTask(task),
+            onUndo: isDeliveredView ? () => _markPending(task) : null,
+            onDelete: () => _deleteTask(task),
+            onStatusChanged: (newStatus) => _updateStatus(task, newStatus!),
+          );
+        },
+      );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.only(top: 16, bottom: 90),
-      itemCount: tasks.length,
-      itemBuilder: (context, index) {
-        final task = tasks[index];
-        return TaskCard(
-          task: task,
-          onDelivered: isDeliveredView ? () {} : () => _markDelivered(task),
-          onPartial: isDeliveredView ? () {} : () => _markPartial(task),
-          onEdit: () => _editTask(task),
-          onUndo: isDeliveredView ? () => _markPending(task) : null,
-          onDelete: () => _deleteTask(task),
-          onStatusChanged: (newStatus) => _updateStatus(task, newStatus!),
-        );
-      },
+
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 800),
+        child: content,
+      ),
     );
   }
 }

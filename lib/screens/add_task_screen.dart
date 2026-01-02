@@ -17,8 +17,8 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   late TextEditingController _notesController;
   
   // Dynamic Inventory List
-  // Each item is {name: Controller, qty: Controller}
-  final List<Map<String, TextEditingController>> _inventoryItems = [];
+  // Each item is {brand: String, name: Controller, qty: Controller, custom: Controller}
+  final List<Map<String, dynamic>> _inventoryItems = [];
 
   bool _isLoading = false;
 
@@ -33,6 +33,11 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
 
   // Status Selection
   TaskStatus _status = TaskStatus.pending;
+
+  // Brand Options
+  final List<String> _brands = ['Prestine', 'Frozen', 'Milky mist', 'Shakthi', 'Others'];
+  
+  // Note: Global brand state is removed in favor of per-row brands
 
   @override
   void initState() {
@@ -60,23 +65,41 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
 
   void _initInventory() {
     if (widget.task != null && widget.task!.orderDetails.isNotEmpty) {
-      // Parse existing string: "ItemName Quantity" or "ItemName - Quantity" per line
+      // Logic for multi-brand parsing: expects "Brand - Name Qty" or "Brand: Name Qty"
       final lines = widget.task!.orderDetails.split('\n');
       for (var line in lines) {
          if (line.trim().isEmpty) continue;
-         // Naive split attempt
-         _addNewItemRow(initialName: line);
+         
+         String brandFound = 'Others';
+         String namePart = line;
+         
+         // Attempt to identify brand from line start
+         for (var b in _brands) {
+           if (b == 'Others') continue;
+           if (line.trim().startsWith('$b - ')) {
+             brandFound = b;
+             namePart = line.replaceFirst('$b - ', '');
+             break;
+           }
+         }
+
+         _addNewItemRow(
+           initialBrand: brandFound,
+           initialName: namePart,
+           initialCustomBrand: brandFound == 'Others' && line.contains(' - ') ? line.split(' - ').first : null
+         );
       }
     } else {
-      // Start with one empty row
       _addNewItemRow();
     }
   }
 
-  void _addNewItemRow({String? initialName, String? initialQty}) {
+  void _addNewItemRow({String? initialBrand, String? initialName, String? initialQty, String? initialCustomBrand}) {
     _inventoryItems.add({
+      'brand': initialBrand ?? 'Prestine', // Store brand string directly
       'name': TextEditingController(text: initialName ?? ''),
       'qty': TextEditingController(text: initialQty ?? ''),
+      'custom': TextEditingController(text: initialCustomBrand ?? ''),
     });
     setState(() {});
   }
@@ -126,27 +149,43 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
     });
   }
 
-  String _compileOrderDetails() {
-    final buffer = StringBuffer();
-    for (var item in _inventoryItems) {
-      final name = item['name']?.text.trim() ?? '';
-      final qty = item['qty']?.text.trim() ?? '';
-      if (name.isNotEmpty) {
-        buffer.writeln(qty.isNotEmpty ? '$name $qty' : name);
-      }
-    }
-    return buffer.toString().trim();
-  }
-
   @override
   void dispose() {
     _shopController.dispose();
     _notesController.dispose();
     for (var item in _inventoryItems) {
-      item['name']?.dispose();
-      item['qty']?.dispose();
+      if (item['name'] is TextEditingController) (item['name'] as TextEditingController).dispose();
+      if (item['qty'] is TextEditingController) (item['qty'] as TextEditingController).dispose();
+      if (item['custom'] is TextEditingController) (item['custom'] as TextEditingController).dispose();
     }
     super.dispose();
+  }
+
+  String _compileOrderDetails() {
+    final buffer = StringBuffer();
+    for (var item in _inventoryItems) {
+      final brandVal = item['brand'] as String? ?? 'Prestine';
+      final customB = (item['custom'] as TextEditingController?)?.text.trim() ?? '';
+      final name = (item['name'] as TextEditingController?)?.text.trim() ?? '';
+      final qty = (item['qty'] as TextEditingController?)?.text.trim() ?? '';
+      
+      final actualBrand = brandVal == 'Others' ? customB : brandVal;
+      
+      if (name.isNotEmpty) {
+        buffer.writeln('$actualBrand - $name $qty');
+      }
+    }
+    return buffer.toString().trim();
+  }
+
+  List<String> _compileBrands() {
+    final Set<String> uniqueBrands = {};
+    for (var item in _inventoryItems) {
+      final brandVal = item['brand'] as String? ?? 'Prestine';
+      final customB = (item['custom'] as TextEditingController?)?.text.trim() ?? '';
+      uniqueBrands.add(brandVal == 'Others' ? customB : brandVal);
+    }
+    return uniqueBrands.where((b) => b.isNotEmpty).toList();
   }
 
   void _submit() async {
@@ -163,12 +202,15 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
       }
 
       final dateToSave = _isToday ? DateTime.now() : _selectedDate;
+      final brandsList = _compileBrands();
+      final brandString = brandsList.join(', ');
 
       if (widget.task != null) {
         // Edit mode
         final updatedTask = Task(
           id: widget.task!.id,
           shopName: _shopController.text.trim(),
+          brand: brandString,
           orderDetails: orderDetails,
           notes: _notesController.text.trim(),
           status: _status,
@@ -181,6 +223,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
         final task = Task(
           id: '', 
           shopName: _shopController.text.trim(),
+          brand: brandString,
           orderDetails: orderDetails,
           notes: _notesController.text.trim(),
           status: _status,
@@ -300,7 +343,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
 
                     const SizedBox(height: 24),
 
-                     // DATE SECTION
+                    // DATE SECTION
                     _buildLabel('DELIVERY DATE'),
                     const SizedBox(height: 12),
                     Row(
@@ -435,6 +478,12 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                       physics: const NeverScrollableScrollPhysics(),
                       itemCount: _inventoryItems.length,
                       itemBuilder: (context, index) {
+                        final item = _inventoryItems[index];
+                        final currentBrand = item['brand'] as String;
+                        final nameCtrl = item['name'] as TextEditingController;
+                        final qtyCtrl = item['qty'] as TextEditingController;
+                        final customCtrl = item['custom'] as TextEditingController;
+
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 12.0),
                           child: Container(
@@ -444,29 +493,65 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                               borderRadius: BorderRadius.circular(16),
                             ),
                             child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                // Brand Dropdown (Full Width on its own row for clarity)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: DropdownButtonHideUnderline(
+                                    child: DropdownButton<String>(
+                                      value: currentBrand,
+                                      isExpanded: true,
+                                      icon: const Icon(Icons.business_rounded, size: 20, color: Colors.blueGrey),
+                                      hint: const Text("Select Brand"),
+                                      items: _brands.map((b) => DropdownMenuItem(value: b, child: Text(b, style: const TextStyle(fontWeight: FontWeight.w600)))).toList(),
+                                      onChanged: (val) {
+                                        if (val != null) {
+                                          setState(() => _inventoryItems[index]['brand'] = val);
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                ),
+                                if (currentBrand == 'Others') ...[
+                                  const SizedBox(height: 8),
+                                  _buildTextField(
+                                    controller: customCtrl,
+                                    hint: 'Type Custom Brand Name',
+                                    fillColor: Colors.white,
+                                  ),
+                                ],
+                                const SizedBox(height: 12),
+                                // Item Name and Quantity Row
                                 Row(
                                   children: [
                                     Expanded(
                                       flex: 3,
                                       child: _buildTextField(
-                                        controller: _inventoryItems[index]['name']!, 
-                                        hint: 'Item Name',
+                                        controller: nameCtrl, 
+                                        hint: 'Product Name',
+                                        fillColor: Colors.white,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      flex: 2,
+                                      child: _buildTextField(
+                                        controller: qtyCtrl, 
+                                        hint: 'Qty',
                                         fillColor: Colors.white,
                                       ),
                                     ),
                                     if (_inventoryItems.length > 1) 
                                       IconButton(
-                                        icon: const Icon(Icons.close, color: Colors.grey, size: 20),
+                                        icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent, size: 24),
                                         onPressed: () => _removeItemRow(index),
                                       )
                                   ],
-                                ),
-                                const SizedBox(height: 8),
-                                _buildTextField(
-                                  controller: _inventoryItems[index]['qty']!, 
-                                  hint: 'Quantity / Amount',
-                                  fillColor: Colors.white,
                                 ),
                               ],
                             ),

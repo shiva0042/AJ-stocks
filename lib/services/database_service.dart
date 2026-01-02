@@ -50,6 +50,7 @@ class DatabaseService {
           return Task(
             id: e.key.toString(),
             shopName: val['shopName'] ?? '',
+            brand: val['brand'] ?? 'Others',
             orderDetails: val['orderDetails'] ?? '',
             notes: val['notes'] ?? '',
             status: TaskStatus.values.firstWhere(
@@ -86,6 +87,7 @@ class DatabaseService {
       final newTask = Task(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         shopName: task.shopName,
+        brand: task.brand,
         orderDetails: task.orderDetails,
         notes: task.notes,
         status: task.status,
@@ -98,6 +100,7 @@ class DatabaseService {
       try {
         await _tasksRef.push().set({
           'shopName': task.shopName,
+          'brand': task.brand,
           'orderDetails': task.orderDetails,
           'notes': task.notes,
           'status': task.status.toString(),
@@ -124,6 +127,7 @@ class DatabaseService {
       try {
         await _tasksRef.child(task.id).update({
           'shopName': task.shopName,
+          'brand': task.brand,
           'orderDetails': task.orderDetails,
           'notes': task.notes,
         }).timeout(const Duration(seconds: 5));
@@ -143,6 +147,7 @@ class DatabaseService {
         _mockTasks[index] = Task(
           id: old.id,
           shopName: old.shopName,
+          brand: old.brand,
           orderDetails: old.orderDetails,
           notes: old.notes,
           status: status,
@@ -195,6 +200,7 @@ class DatabaseService {
                _mockTasks[i] = Task(
                 id: t.id,
                 shopName: t.shopName,
+                brand: t.brand,
                 orderDetails: t.orderDetails,
                 notes: t.notes,
                 status: TaskStatus.urgent,

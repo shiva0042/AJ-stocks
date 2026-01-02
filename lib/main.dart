@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-// import 'package:google_fonts/google_fonts.dart';
+import 'package:google_fonts/google_fonts.dart';
+
 import 'screens/dashboard_screen.dart';
-// import 'services/notification_service.dart';
+import 'services/notification_service.dart';
 import 'firebase_options.dart'; 
 import 'services/database_service.dart';
 
@@ -31,6 +32,19 @@ void main() async {
     }
   }
 
+  // Initialize Notifications
+  try {
+     final notificationService = NotificationService();
+     await notificationService.init();
+     // Request permission (important for Android 13+)
+     await notificationService.requestPermissions();
+     // Schedule daily 7 AM notification
+     await notificationService.scheduleDailyNotification();
+     debugPrint('Daily notification scheduled.');
+  } catch (e) {
+     debugPrint('Notification init failed: $e');
+  }
+
   runApp(AJStocksApp(initError: initError));
 }
 
@@ -44,12 +58,54 @@ class AJStocksApp extends StatelessWidget {
       title: 'AJ Stocks',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.teal,
-          primary: Colors.teal,
-          secondary: Colors.orangeAccent,
-        ),
         useMaterial3: true,
+        scaffoldBackgroundColor: const Color(0xFFF4F6F8),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF4C4DDC),
+          primary: const Color(0xFF4C4DDC),
+          secondary: const Color(0xFF00D2B6),
+          tertiary: const Color(0xFFFF8A65),
+          surface: Colors.white,
+          background: const Color(0xFFF4F6F8),
+        ),
+        textTheme: GoogleFonts.poppinsTextTheme(),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF4C4DDC),
+          foregroundColor: Colors.white,
+          elevation: 0,
+        ),
+        // cardTheme: CardTheme(
+        //   elevation: 0,
+        //   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        //   color: Colors.white,
+        //   surfaceTintColor: Colors.white,
+        // ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF4C4DDC),
+            foregroundColor: Colors.white,
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          ),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFF4C4DDC), width: 1.5),
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        ),
       ),
       home: DashboardScreen(initError: initError),
     );

@@ -10,6 +10,7 @@ enum TaskStatus {
 class Task {
   final String id;
   final String shopName;
+  final String brand; // Brand selection (Prestine, Frozen, etc.)
   final String orderDetails; // Merged Stock Name + Quantity, supports multiline
   final String notes;
   final TaskStatus status;
@@ -19,6 +20,7 @@ class Task {
   Task({
     required this.id,
     required this.shopName,
+    required this.brand,
     required this.orderDetails,
     this.notes = '',
     required this.status,
@@ -44,6 +46,7 @@ class Task {
   Map<String, dynamic> toMap() {
     return {
       'shopName': shopName,
+      'brand': brand,
       'orderDetails': orderDetails,
       'notes': notes,
       'status': status.name,

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/task_model.dart';
 
+// ... imports remain the same
+
 class TaskCard extends StatelessWidget {
   final Task task;
   final VoidCallback onDelivered;
@@ -24,153 +26,243 @@ class TaskCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Color cardColor;
     Color statusColor;
     IconData statusIcon;
 
     switch (task.status) {
       case TaskStatus.urgent:
-        cardColor = Colors.red.shade50;
-        statusColor = Colors.red;
+        statusColor = const Color(0xFFFF5722); // Deep Orange
         statusIcon = Icons.warning_rounded;
         break;
       case TaskStatus.partial:
-        cardColor = Colors.orange.shade50;
-        statusColor = Colors.orange;
+        statusColor = const Color(0xFFFFB74D); // Orange Light
         statusIcon = Icons.hourglass_bottom_rounded;
         break;
       case TaskStatus.delivered:
-        cardColor = Colors.green.shade50;
-        statusColor = Colors.green;
+        statusColor = const Color(0xFF00C853); // Green Accent
         statusIcon = Icons.check_circle_rounded;
         break;
       case TaskStatus.pending:
       default:
-        cardColor = Colors.white;
-        statusColor = Colors.blueGrey;
+        statusColor = const Color(0xFF90A4AE); // Blue Grey
         statusIcon = Icons.inventory_2_outlined;
         break;
     }
 
-    final dateFormat = DateFormat('MMM dd, hh:mm a');
+    final dateFormat = DateFormat('MMM dd • hh:mm a');
+    final theme = Theme.of(context);
 
-    return Card(
-      elevation: 2,
+    return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      shape: RoundedRectangleBorder(
+      decoration: BoxDecoration(
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: statusColor.withOpacity(0.3), width: 1),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
       ),
-      color: cardColor,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    task.shopName.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: statusColor,
-                      letterSpacing: 1.0,
-                    ),
-                  ),
-                ),
-                if (onEdit != null)
-                  IconButton(
-                    icon: const Icon(Icons.edit, size: 20),
-                    color: Colors.grey,
-                    onPressed: onEdit,
-                    constraints: const BoxConstraints(),
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                  ),
-                if (onDelete != null)
-                  IconButton(
-                    icon: const Icon(Icons.delete, size: 20),
-                    color: Colors.red,
-                    onPressed: onDelete,
-                    constraints: const BoxConstraints(),
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                  ),
-                Icon(statusIcon, color: statusColor, size: 20),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              task.orderDetails,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: IntrinsicHeight(
+          child: Row(
+            children: [
+              // Colored Status Bar Indicator
+              Container(
+                width: 6,
+                color: statusColor,
               ),
-            ),
-            const SizedBox(height: 4),
-            if (task.status == TaskStatus.partial &&
-                task.partialDetails != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Partial Delivery: ${task.partialDetails}',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.orange.shade800,
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header: Shop Name & Status Icon
+                       Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  task.shopName,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: const Color(0xFF263238),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                // Multi-Brand Badges
+                                Wrap(
+                                  spacing: 4,
+                                  runSpacing: 4,
+                                  children: task.brand.split(', ').map((b) => Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.primary.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      b.toUpperCase(),
+                                      style: TextStyle(
+                                        color: theme.colorScheme.primary,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0.5
+                                      ),
+                                    ),
+                                  )).toList(),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: statusColor.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(statusIcon, color: statusColor, size: 18),
+                          ),
+                        ],
+                      ),
+                      
+                      const SizedBox(height: 8),
+                      
+                      // Order Details
+                      Text(
+                        task.orderDetails,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: Colors.black87,
+                          fontSize: 16,
+                          height: 1.3
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 8),
+
+                      // Metadata Row (Partial Info or Date)
+                      if (task.status == TaskStatus.partial && task.partialDetails != null)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.orange.shade100),
+                          ),
+                          child: Text(
+                            'Partial: ${task.partialDetails}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.orange.shade800,
+                            ),
+                          ),
+                        ),
+
+                      if (task.notes.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: Row(
+                            children: [
+                              Icon(Icons.sticky_note_2_outlined, size: 16, color: Colors.grey[400]),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  task.notes,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 13, color: Colors.grey[600], fontStyle: FontStyle.italic),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                      const Divider(height: 24, thickness: 0.5),
+
+                      // Status Buttons Row
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: TaskStatus.values.map((status) {
+                          final isSelected = task.status == status;
+                          Color baseColor;
+                          switch (status) {
+                            case TaskStatus.urgent: baseColor = const Color(0xFFFF5722); break;
+                            case TaskStatus.partial: baseColor = const Color(0xFFFFB74D); break;
+                            case TaskStatus.delivered: baseColor = const Color(0xFF00C853); break;
+                            case TaskStatus.pending: default: baseColor = const Color(0xFF90A4AE); break;
+                          }
+
+                          return InkWell(
+                            onTap: () => onStatusChanged?.call(status),
+                            borderRadius: BorderRadius.circular(8),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: isSelected ? baseColor : baseColor.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: isSelected ? baseColor : baseColor.withOpacity(0.2),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Text(
+                                status.name.toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: isSelected ? Colors.white : baseColor.withOpacity(0.8),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Footer: Date & Actions
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            dateFormat.format(task.createdAt),
+                            style: TextStyle(fontSize: 12, color: Colors.grey[500], fontWeight: FontWeight.w500),
+                          ),
+                          Row(
+                            children: [
+                              if (onEdit != null)
+                                InkWell(
+                                  onTap: onEdit,
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(6.0),
+                                    child: Icon(Icons.edit_outlined, size: 20, color: Colors.grey[400]),
+                                  ),
+                                ),
+                              if (onDelete != null)
+                                InkWell(
+                                  onTap: onDelete,
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(6.0),
+                                    child: Icon(Icons.delete_outline_rounded, size: 20, color: Colors.red[300]),
+                                  ),
+                                ),
+                            ],
+                          )
+                        ],
+                      )
+                    ],
+                  ),
                 ),
               ),
             ],
-            if (task.notes.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Note: ${task.notes}',
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: Colors.black54,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-            ],
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              decoration: BoxDecoration(
-                color: statusColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: statusColor.withOpacity(0.5)),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<TaskStatus>(
-                  value: task.status,
-                  isDense: true,
-                  icon: Icon(Icons.arrow_drop_down, color: statusColor, size: 16),
-                  items: TaskStatus.values.map((status) {
-                     Color c = Colors.grey;
-                     if(status == TaskStatus.urgent) c = Colors.red;
-                     if(status == TaskStatus.delivered) c = Colors.green;
-                     if(status == TaskStatus.partial) c = Colors.orange;
-                     if(status == TaskStatus.pending) c = Colors.blueGrey;
-                     
-                     return DropdownMenuItem(
-                       value: status, 
-                       child: Text(
-                         status.name.toUpperCase(), 
-                         style: TextStyle(fontSize: 10, color: c, fontWeight: FontWeight.bold)
-                       )
-                     );
-                  }).toList(),
-                  onChanged: onStatusChanged,
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              dateFormat.format(task.createdAt),
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-            ),
-          ],
+          ),
         ),
       ),
     );
