@@ -32,15 +32,13 @@ void main() async {
     }
   }
 
-  // Initialize Notifications
+  // Initialize Notifications (do NOT schedule on startup - wait for user to set time)
   try {
      final notificationService = NotificationService();
      await notificationService.init();
      // Request permission (important for Android 13+)
      await notificationService.requestPermissions();
-     // Schedule daily 7 AM notification
-     await notificationService.scheduleDailyNotification();
-     debugPrint('Daily notification scheduled.');
+     debugPrint('Notification service initialized (not scheduling on startup).');
   } catch (e) {
      debugPrint('Notification init failed: $e');
   }

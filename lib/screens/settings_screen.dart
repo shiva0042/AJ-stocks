@@ -25,19 +25,71 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _pickTime() async {
-    final TimeOfDay? picked = await showTimePicker(
-      context: context,
-      initialTime: _notificationTime,
-    );
-    if (picked != null && picked != _notificationTime) {
+    try {
+      final TimeOfDay? picked = await showTimePicker(
+        context: context,
+        initialTime: _notificationTime,
+      );
+      
+      if (picked == null || picked == _notificationTime) return;
+      
       setState(() {
         _notificationTime = picked;
       });
-      // Reschedule notification
-      await NotificationService().scheduleDailyNotification(time: picked);
+      
+      // Show loading
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Daily Notification set to ${_notificationTime.format(context)}')),
+          const SnackBar(
+            content: Text('Scheduling notification...'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+      
+      // Reschedule with timeout
+      await NotificationService()
+          .scheduleDailyNotification(time: picked)
+          .timeout(
+            const Duration(seconds: 5),
+            onTimeout: () {
+              throw Exception('Scheduling timeout - please try again');
+            },
+          );
+      
+      // Calculate delay for user feedback
+      final now = DateTime.now();
+      var scheduledDate = DateTime(now.year, now.month, now.day, picked.hour, picked.minute);
+      if (scheduledDate.isBefore(now)) scheduledDate = scheduledDate.add(const Duration(days: 1));
+      final diff = scheduledDate.difference(now);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Notification scheduled for ${picked.format(context)}\n'
+              '(in ${diff.inHours}h ${diff.inMinutes % 60}m). Close app now!',
+            ),
+            duration: const Duration(seconds: 4),
+            backgroundColor: Colors.green,
+          ),
+        );
+        
+        // Immediate visual confirmation
+        await NotificationService().showInstantNotification(
+           title: "✓ Scheduled Successfully",
+           body: "Notification set for ${picked.format(context)}"
+        );
+      }
+    } catch (e) {
+      print("ERROR in _pickTime: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to schedule: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
         );
       }
     }
@@ -68,16 +120,76 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(color: Colors.teal.withOpacity(0.1), shape: BoxShape.circle),
-                    child: const Icon(Icons.notifications_active, color: Colors.teal),
-                  ),
-                  title: const Text("Daily Briefing Time"),
-                  subtitle: Text("Receive updates at ${_notificationTime.format(context)}"),
-                  trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-                  onTap: _pickTime,
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(color: Colors.teal.withOpacity(0.1), shape: BoxShape.circle),
+                        child: const Icon(Icons.notifications_active, color: Colors.teal),
+                      ),
+                      title: const Text("Daily Briefing Time"),
+                      subtitle: Text("Receive updates at ${_notificationTime.format(context)}"),
+                      trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                      onTap: _pickTime,
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), shape: BoxShape.circle),
+                        child: const Icon(Icons.notification_important, color: Colors.orange),
+                      ),
+                      title: const Text("Test Notification"),
+                      subtitle: const Text("Send an immediate test alert"),
+                      onTap: () async {
+                        await NotificationService().showInstantNotification(
+                          title: "Test Alert",
+                          body: "This is a test notification from AJ Stocks!",
+                        );
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("Test notification sent!")),
+                          );
+                        }
+                      },
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(color: Colors.purple.withOpacity(0.1), shape: BoxShape.circle),
+                        child: const Icon(Icons.timer, color: Colors.purple),
+                      ),
+                      title: const Text("Test: Schedule 30 Sec"),
+                      subtitle: const Text("Schedule notification for 30 seconds (KEEP APP OPEN)"),
+                      onTap: () async {
+                        try {
+                          final result = await NotificationService().scheduleTestIn30Seconds();
+                          if (mounted) {
+                            final isError = result.startsWith("ERROR");
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(result),
+                                duration: const Duration(seconds: 5),
+                                backgroundColor: isError ? Colors.red : Colors.purple,
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text("CRASH: $e"),
+                                backgroundColor: Colors.red,
+                                duration: Duration(seconds: 5),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                  ],
                 ),
               ),
               

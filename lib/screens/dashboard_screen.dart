@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import '../models/task_model.dart';
 import '../services/database_service.dart';
+import '../services/notification_service.dart';
 import '../widgets/task_card.dart';
 import 'add_task_screen.dart';
 import 'analytics_screen.dart';
 import 'notification_screen.dart';
 import 'settings_screen.dart';
+import 'notifications_screen.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 // ... imports remain the same
 
@@ -17,21 +20,22 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
+
 class _DashboardScreenState extends State<DashboardScreen> {
   final DatabaseService _db = DatabaseService();
   int _currentIndex = 0;
   TaskStatus? _homeFilterStatus;
   String _selectedBrandFilter = 'All';
 
-  // ... state helper methods (_markDelivered, etc) remain largely the same logic, 
-  // but for brevity I will assume they exist or I can inline minimal updates if visuals change.
-  // To keep this safe, I'm keeping the exact same logic methods below.
+  // State helper methods...
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
        await _db.checkAndMarkUrgentTasks();
+       _checkPermissions();
+       
        if (widget.initError != null) {
          showDialog(
            context: context,
@@ -45,8 +49,103 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
+  Future<void> _checkPermissions() async {
+    try {
+      // Step 1: Request Notification Permission
+      var notifStatus = await Permission.notification.status;
+      if (!notifStatus.isGranted) {
+        notifStatus = await Permission.notification.request();
+        if (!notifStatus.isGranted) {
+          if (mounted) {
+            _showPermissionDialog(
+              'Notifications Required',
+              'Please enable notifications to receive daily reminders.'
+            );
+          }
+          return;
+        }
+      }
+      
+      // Step 2: Request Exact Alarm Permission (Android 12+)
+      var alarmStatus = await Permission.scheduleExactAlarm.status;
+      if (alarmStatus.isDenied) {
+        alarmStatus = await Permission.scheduleExactAlarm.request();
+        if (alarmStatus.isDenied) {
+          if (mounted) {
+            _showPermissionDialog(
+              'Alarms Permission Required',
+              'Please enable "Alarms & reminders" permission for scheduled notifications.'
+            );
+          }
+          return;
+        }
+      }
+      
+      // Step 3: Request Battery Optimization Exemption (CRITICAL for background alarms)
+      var batteryStatus = await Permission.ignoreBatteryOptimizations.status;
+      if (!batteryStatus.isGranted) {
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Battery Optimization'),
+              content: const Text(
+                'To receive notifications when the app is closed, please disable battery optimization for AJ Stocks.\n\n'
+                'This allows scheduled notifications to work reliably.'
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Skip'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+                    await Permission.ignoreBatteryOptimizations.request();
+                  },
+                  child: const Text('Allow'),
+                ),
+              ],
+            ),
+          );
+        }
+      }
+      
+      print("All permissions granted successfully");
+    } catch (e) {
+      print("Error checking permissions: $e");
+    }
+  }
+
+  void _showPermissionDialog(String title, String content) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(content),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+               Navigator.pop(ctx);
+               openAppSettings();
+            }, 
+            child: const Text('Open Settings')
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _refreshNotification() async {
+    // Re-schedule with updated content based on new data
+    final time = await NotificationService().getSavedNotificationTime();
+    await NotificationService().scheduleDailyNotification(time: time);
+  }
+
   void _markDelivered(Task task) async {
     await _db.updateTaskStatus(task.id, TaskStatus.delivered);
+    _refreshNotification();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${task.shopName} marked as Delivered!')),
@@ -87,6 +186,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   TaskStatus.partial,
                   partialDetails: controller.text,
                 );
+                _refreshNotification();
                 if (mounted) Navigator.pop(ctx);
               }
             },
@@ -99,6 +199,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _markPending(Task task) async {
     await _db.updateTaskStatus(task.id, TaskStatus.pending);
+    _refreshNotification();
      if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${task.shopName} marked as Pending')),
@@ -111,6 +212,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _markPartial(task);
     } else {
       await _db.updateTaskStatus(task.id, newStatus);
+      _refreshNotification();
     }
   }
 
@@ -119,6 +221,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       context,
       MaterialPageRoute(builder: (context) => AddTaskScreen(task: task)),
     );
+    _refreshNotification();
   }
 
   void _deleteTask(Task task) {
@@ -136,6 +239,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () async {
               await _db.deleteTask(task.id);
+              _refreshNotification();
               if (mounted) {
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -212,18 +316,70 @@ class _DashboardScreenState extends State<DashboardScreen> {
           backgroundColor: primaryColor,
           elevation: 0,
           actions: [
-            // Notification Bell with Badge (Future improvement: Real badging)
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), shape: BoxShape.circle),
-              child: IconButton(
-                onPressed: () {
-                  final tasks = _db.currentTasks ?? [];
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => NotificationScreen(tasks: tasks)));
-                }, 
-                icon: const Icon(Icons.notifications_outlined, color: Colors.white, size: 22),
-              ),
+            // Notification Bell with Badge Counter
+            StreamBuilder<List<Task>>(
+              stream: _db.tasksStream,
+              builder: (context, snapshot) {
+                final pendingCount = snapshot.hasData
+                    ? snapshot.data!.where((t) => t.status != TaskStatus.delivered).length
+                    : 0;
+                
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), shape: BoxShape.circle),
+                      child: IconButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                          );
+                        }, 
+                        icon: const Icon(Icons.notifications_outlined, color: Colors.white, size: 22),
+                      ),
+                    ),
+                    if (pendingCount > 0)
+                      Positioned(
+                        right: 0,
+                        top: 6,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 16,
+                            minHeight: 16,
+                          ),
+                          child: Text(
+                            pendingCount > 99 ? '99+' : '$pendingCount',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
             ),
+             // Status Indicator (Red/Green)
+             Container(
+               width: 12,
+               height: 12,
+               margin: const EdgeInsets.fromLTRB(4, 0, 8, 0),
+               decoration: BoxDecoration(
+                 shape: BoxShape.circle,
+                 color: widget.initError == null ? Colors.greenAccent : Colors.redAccent,
+                 border: Border.all(color: Colors.white, width: 2),
+               ),
+             ),
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 8),
               decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), shape: BoxShape.circle),

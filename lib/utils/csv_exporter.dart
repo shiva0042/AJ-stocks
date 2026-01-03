@@ -3,7 +3,7 @@ import 'csv_export_stub.dart'
     if (dart.library.io) 'csv_export_mobile.dart';
 
 class CsvExporter {
-  static void export(String csvData, String fileName) {
-    CsvExportHelper.downloadCsv(csvData, fileName);
+  static Future<String?> export(String csvData, String fileName) async {
+    return await CsvExportHelper.downloadCsv(csvData, fileName);
   }
 }

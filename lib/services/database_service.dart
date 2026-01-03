@@ -214,4 +214,14 @@ class DatabaseService {
         if (changed) _emitMock();
     }
   }
+  // --- ONE-TIME FETCH ---
+  Future<List<Task>> getAllTasks() async {
+    // Use the stream's logic to ensure consistency with UI
+    try {
+      return await tasksStream.first;
+    } catch (e) {
+      print("DB ERROR: getAllTasks failed via stream: $e");
+      return [];
+    }
+  }
 }

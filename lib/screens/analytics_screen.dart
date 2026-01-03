@@ -36,7 +36,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     }
   }
 
-  void _exportToCsv(List<Task> tasks) {
+  Future<void> _exportToCsv(List<Task> tasks) async {
     if (tasks.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("No data to export for this period.")),
@@ -63,11 +63,33 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     String csvData = const ListToCsvConverter().convert(rows);
     final filename = "AJ_Stocks_${_selectedPeriod}_Report_${DateFormat('yyyyMMdd').format(DateTime.now())}.csv";
     
-    CsvExporter.export(csvData, filename);
+    // Show loading
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Exporting CSV...")),
+      );
+    }
     
-    ScaffoldMessenger.of(context).showSnackBar(
-       SnackBar(content: Text("Downloaded $filename")),
-    );
+    final filePath = await CsvExporter.export(csvData, filename);
+    
+    if (mounted) {
+      if (filePath != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("CSV exported! Choose where to save it from the Share menu."),
+            duration: Duration(seconds: 4),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Export cancelled or failed."),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    }
   }
 
   @override

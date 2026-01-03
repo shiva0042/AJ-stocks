@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/task_model.dart';
 import '../services/database_service.dart';
+import '../services/notification_service.dart';
 
 class AddTaskScreen extends StatefulWidget {
   final Task? task;
@@ -188,6 +189,11 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
     return uniqueBrands.where((b) => b.isNotEmpty).toList();
   }
 
+  Future<void> _refreshNotification() async {
+    final time = await NotificationService().getSavedNotificationTime();
+    await NotificationService().scheduleDailyNotification(time: time);
+  }
+
   void _submit() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
@@ -231,6 +237,8 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
         );
         await DatabaseService().addTask(task);
       }
+      
+      await _refreshNotification(); // Update notification after add/edit
 
       if (mounted) {
         Navigator.pop(context);
@@ -250,6 +258,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () async {
               await DatabaseService().deleteTask(widget.task!.id);
+              await _refreshNotification(); // Update notification after delete
               if (mounted) {
                 Navigator.pop(ctx); // Close dialog
                 Navigator.pop(context); // Close screen
